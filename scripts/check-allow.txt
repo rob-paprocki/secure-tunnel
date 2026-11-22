@@ -1,0 +1,4 @@
+# Exact strings check_repo.py accepts even though they look like addresses.
+# Only public, non-personal values belong here.
+3.8.2.1   # version number of the reimplemented app, not an address
+2.10.16.6  # SIP client version string in src/obfs.rs

@@ -1,0 +1,58 @@
+# Flatpak build of Secure Tunnel. Built by .github/workflows/linux-packages.yml:
+#   cp <target>/x86_64-unknown-linux-gnu/release/secure-tunnel packaging/linux/flatpak/
+#   flatpak-builder --repo=repo build packaging/linux/flatpak/org.securetunnel.SecureTunnel.yml
+#   flatpak build-bundle repo secure-tunnel-<version>-x86_64.flatpak org.securetunnel.SecureTunnel
+#
+# A VPN client can't create network adapters or firewall rules from inside the
+# sandbox. Secure Tunnel's tunnel helper therefore runs on the host through
+# `flatpak-spawn --host pkexec` (see src/flatpak.rs), which needs the
+# org.freedesktop.Flatpak permission below. That permission lets the app run
+# programs outside the sandbox, so this build is distributed as a bundle from
+# the project's releases rather than through Flathub.
+app-id: org.securetunnel.SecureTunnel
+branch: stable
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: secure-tunnel
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Run the tunnel helper on the host with pkexec.
+  - --talk-name=org.freedesktop.Flatpak
+  # Tray icon and desktop notifications.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # "Start at sign-in" writes ~/.config/autostart/secure-tunnel.desktop.
+  - --filesystem=xdg-config/autostart:create
+modules:
+  - name: secure-tunnel
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 secure-tunnel /app/bin/secure-tunnel
+      - install -Dm644 secure-tunnel.desktop /app/share/applications/org.securetunnel.SecureTunnel.desktop
+      - desktop-file-edit --set-icon=org.securetunnel.SecureTunnel /app/share/applications/org.securetunnel.SecureTunnel.desktop
+      - for s in 48 128 256; do install -Dm644 icon-$s.png /app/share/icons/hicolor/${s}x${s}/apps/org.securetunnel.SecureTunnel.png; done
+      - install -Dm644 org.securetunnel.SecureTunnel.metainfo.xml /app/share/metainfo/org.securetunnel.SecureTunnel.metainfo.xml
+      - install -Dm644 LICENSE /app/share/licenses/org.securetunnel.SecureTunnel/LICENSE
+    sources:
+      - type: file
+        path: secure-tunnel
+      - type: file
+        path: ../secure-tunnel.desktop
+      - type: file
+        path: ../org.securetunnel.SecureTunnel.metainfo.xml
+      - type: file
+        path: ../../../LICENSE
+      - type: file
+        path: ../icons/48x48/secure-tunnel.png
+        dest-filename: icon-48.png
+      - type: file
+        path: ../icons/128x128/secure-tunnel.png
+        dest-filename: icon-128.png
+      - type: file
+        path: ../icons/256x256/secure-tunnel.png
+        dest-filename: icon-256.png

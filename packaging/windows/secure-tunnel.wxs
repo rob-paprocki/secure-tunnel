@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Secure Tunnel installer (WiX Toolset 5). Built by packaging/windows/build-windows.py:
+    wix build -arch x64|arm64 -d Version=X.Y.Z -d ExePath=... -ext WixToolset.UI.wixext
+  The UpgradeCode never changes: it lets a newer MSI replace an older one.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Secure Tunnel"
+           Manufacturer="Secure Tunnel"
+           Version="$(var.Version)"
+           UpgradeCode="B91938F3-8810-42E3-B803-961F46E01A60"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Secure Tunnel is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/rob-paprocki/secure-tunnel" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Secure Tunnel">
+        <Component Id="MainExe">
+          <File Id="SecureTunnelExe" Source="$(var.ExePath)" Name="secure-tunnel.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="LicenseDoc">
+          <File Source="$(var.RootDir)\LICENSE" Name="LICENSE.txt" />
+        </Component>
+        <Component Id="ThirdPartyDoc">
+          <File Source="$(var.RootDir)\THIRD_PARTY.md" Name="THIRD_PARTY.md" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="AppShortcut" Name="Secure Tunnel" Description="WireGuard and AmneziaWG VPN client"
+                  Target="[#SecureTunnelExe]" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+        <RegistryValue Root="HKLM" Key="Software\SecureTunnel" Name="StartMenuShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Secure Tunnel">
+      <ComponentRef Id="MainExe" />
+      <ComponentRef Id="LicenseDoc" />
+      <ComponentRef Id="ThirdPartyDoc" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!-- The app's "connect at startup" option creates this scheduled task; remove it with the app. -->
+    <CustomAction Id="RemoveStartupTask" Directory="System64Folder"
+                  ExeCommand="schtasks.exe /Delete /TN &quot;SecureTunnel Connect&quot; /F"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveStartupTask" Before="RemoveFiles"
+              Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <ui:WixUI Id="WixUI_Minimal" />
+  </Package>
+</Wix>

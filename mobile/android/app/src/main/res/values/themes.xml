@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws the whole screen; the window theme only sets the background before it starts. -->
+    <style name="Theme.SecureTunnel" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,113 @@
+[package]
+name = "secure-tunnel"
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Cross-platform WireGuard profile manager and tunnel client"
+
+[dependencies]
+eframe = "0.33"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+directories = "6"
+rfd = "0.15"
+base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+aes = "0.8"
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+boringtun = { version = "0.7.1", default-features = false }
+socket2 = { version = "0.6", features = ["all"] }
+tun-rs = "2.8.18"
+notify-rust = "4.19.0"
+raw-window-handle = "0.6"
+sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
+
+[build-dependencies]
+# build.rs checks the pinned hashes of the Windows drivers in vendor/.
+sha2 = "0.10"
+winresource = "0.1.34"
+
+[lints.rust]
+# Set by the phone apps' tunnel core (mobile/core), which shares some of these files.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(st_mobile)"] }
+
+[profile.release]
+opt-level = 3
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+winit = "0.30"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tray-icon = "0.26.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3.7", features = ["blocking"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_UI_WindowsAndMessaging", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_NetworkManagement_WindowsFilteringPlatform", "Win32_System_Rpc", "Win32_Security"] }
+# Loads the bundled WinDivert.dll for Windows per-app routing (src/winfilter.rs).
+libloading = "0.8"
+
+# ---------- Linux packages (packaging/linux/build-packages.py) ----------
+# Graphics and desktop libraries are loaded at run time, so they are listed
+# here instead of being found by the packagers.
+
+[package.metadata.deb]
+name = "secure-tunnel"
+maintainer = "Secure Tunnel maintainers <noreply@example.invalid>"
+copyright = "Secure Tunnel maintainers"
+license-file = ["LICENSE", "0"]
+section = "net"
+priority = "optional"
+extended-description = "Desktop VPN client for WireGuard profiles with traffic disguising (junk packets, protocol imitation), SOCKS5 transport, a kill switch and per-app routing."
+depends = "libc6 (>= 2.30), libgl1, libegl1, libxkbcommon0, libx11-6, libx11-xcb1, libxcursor1, libxrandr2, libxi6, libwayland-client0, iproute2, nftables, procps, pkexec | policykit-1, xdg-utils"
+recommends = "libsecret-tools, xdg-desktop-portal, systemd-resolved | resolvconf"
+assets = [
+    ["target/release/secure-tunnel", "usr/bin/", "755"],
+    ["packaging/linux/secure-tunnel.desktop", "usr/share/applications/", "644"],
+    ["packaging/linux/icons/48x48/secure-tunnel.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
+    ["packaging/linux/icons/128x128/secure-tunnel.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
+    ["packaging/linux/icons/256x256/secure-tunnel.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
+    ["THIRD_PARTY.md", "usr/share/doc/secure-tunnel/", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "secure-tunnel"
+license = "GPL-3.0-or-later"
+summary = "Desktop VPN client for WireGuard profiles"
+assets = [
+    { source = "target/release/secure-tunnel", dest = "/usr/bin/secure-tunnel", mode = "755" },
+    { source = "packaging/linux/secure-tunnel.desktop", dest = "/usr/share/applications/secure-tunnel.desktop", mode = "644" },
+    { source = "packaging/linux/icons/48x48/secure-tunnel.png", dest = "/usr/share/icons/hicolor/48x48/apps/secure-tunnel.png", mode = "644" },
+    { source = "packaging/linux/icons/128x128/secure-tunnel.png", dest = "/usr/share/icons/hicolor/128x128/apps/secure-tunnel.png", mode = "644" },
+    { source = "packaging/linux/icons/256x256/secure-tunnel.png", dest = "/usr/share/icons/hicolor/256x256/apps/secure-tunnel.png", mode = "644" },
+    { source = "THIRD_PARTY.md", dest = "/usr/share/doc/secure-tunnel/THIRD_PARTY.md", mode = "644", doc = true },
+]
+auto-req = "disabled"
+
+# Libraries by file name and tools by either distribution's package name,
+# so the same package installs on Fedora, RHEL-family and openSUSE.
+[package.metadata.generate-rpm.requires]
+"libGL.so.1()(64bit)" = "*"
+"libEGL.so.1()(64bit)" = "*"
+"libxkbcommon.so.0()(64bit)" = "*"
+"libX11.so.6()(64bit)" = "*"
+"libX11-xcb.so.1()(64bit)" = "*"
+"libXcursor.so.1()(64bit)" = "*"
+"libXrandr.so.2()(64bit)" = "*"
+"libXi.so.6()(64bit)" = "*"
+"libwayland-client.so.0()(64bit)" = "*"
+"(iproute or iproute2)" = "*"
+"nftables" = "*"
+"polkit" = "*"
+"(procps-ng or procps)" = "*"
+"xdg-utils" = "*"
+
+[package.metadata.generate-rpm.recommends]
+"(libsecret-tools or libsecret)" = "*"

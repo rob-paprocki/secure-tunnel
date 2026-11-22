@@ -1,0 +1,11 @@
+# Binary files allowed in the public copy: <sha256> <path>
+# Each was reviewed: PNGs have no metadata chunks; the jar matches Gradle's published checksum.
+# A changed file has a new hash and fails the publish check until it is reviewed and listed again.
+8caa4047b2ca48db9f044df62110dc0fd9f0359c4c422f1021238406cb783c67 docs/images/main-dark.png
+81a8b3281c3a90136b68218d85a5ddf5c8c5f6c802cfd475ae086c2721821288 docs/images/main-light.png
+621008afc4f5d59357fcf06ffa644dd5aade5e091bdc363742710445f73cdaf8 mobile/android/gradle/wrapper/gradle-wrapper.jar
+a3bc597be45035d2ea3c415d60b6e96976e9ed6fffcf2f8d368eaee79a5b0a3e packaging/linux/icons/128x128/secure-tunnel.png
+6d0ff1b9a76535dcb87800cae84ee74050d7aeb90b36095df81935e672148eb3 packaging/linux/icons/256x256/secure-tunnel.png
+3b2c47f49e619a7cfd85ba5004075aef4b13bf0c383db2469d001a4f6e0caa01 packaging/linux/icons/48x48/secure-tunnel.png
+c213b70a4586b39260f66af2343cc69cfac4fd629a919632ca6e7e36fc63bd80 macos/App/AppIcon.icns
+c7245713d7b180b77a61255768e3051c0d3c5729547f67133860bb4b873d629d packaging/windows/secure-tunnel.ico

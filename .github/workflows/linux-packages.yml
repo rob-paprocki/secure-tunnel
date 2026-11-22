@@ -1,0 +1,94 @@
+name: Linux packages
+
+# Builds every Linux download on Ubuntu: .deb, .rpm, Arch and .tar.gz for x86-64
+# and ARM64, plus an AppImage and a Flatpak bundle for x86-64. The files are
+# uploaded as one artifact named linux-packages.
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - .github/workflows/linux-packages.yml
+      - packaging/linux/**
+      - src/**
+      - Cargo.toml
+      - Cargo.lock
+      - build.rs
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'   # build-packages.py uses compression.zstd
+
+      - name: Install build tools
+        run: |
+          rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+          pip install ziglang==0.17.1
+          cargo install --locked cargo-zigbuild cargo-deb cargo-generate-rpm
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder xvfb rpm libgl1 libegl1 libxkbcommon0 libxkbcommon-x11-0 libx11-xcb1 libxcursor1 libxrandr2 libxi6 libwayland-client0
+
+      - name: Build binaries (glibc 2.31)
+        run: |
+          cargo zigbuild --release --locked --target x86_64-unknown-linux-gnu.2.31
+          cargo zigbuild --release --locked --target aarch64-unknown-linux-gnu.2.31
+
+      - name: Check the binary
+        run: |
+          BIN=target/x86_64-unknown-linux-gnu/release/secure-tunnel
+          file $BIN target/aarch64-unknown-linux-gnu/release/secure-tunnel
+          echo "Needed libraries:"; objdump -p $BIN | awk '/NEEDED/{print "  " $2}'
+          MAXGLIBC=$(objdump -T $BIN | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "Newest glibc symbol: $MAXGLIBC"
+          [ "$(printf '%s\nGLIBC_2.31\n' "$MAXGLIBC" | sort -V | tail -1)" = "GLIBC_2.31" ]
+          # The window must open with only the system's graphics libraries.
+          set +e; timeout 8 xvfb-run -a $BIN; rc=$?; set -e
+          echo "exit code $rc (124 = still running when stopped, which is the pass case)"
+          [ $rc -eq 124 ]
+
+      - name: deb, rpm, Arch and tarball
+        run: python -I packaging/linux/build-packages.py
+
+      - name: AppImage
+        run: |
+          bash packaging/linux/build-appimage.sh
+          APPIMAGE=$(ls dist/linux/*.AppImage)
+          set +e; timeout 8 xvfb-run -a "$APPIMAGE" --appimage-extract-and-run; rc=$?; set -e
+          echo "exit code $rc"; [ $rc -eq 124 ]
+
+      - name: Flatpak
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          cp target/x86_64-unknown-linux-gnu/release/secure-tunnel packaging/linux/flatpak/
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=build/flatpak-repo \
+            build/flatpak packaging/linux/flatpak/org.securetunnel.SecureTunnel.yml
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            build/flatpak-repo dist/linux/secure-tunnel-$VERSION-x86_64.flatpak org.securetunnel.SecureTunnel stable
+          flatpak install --user -y --noninteractive dist/linux/secure-tunnel-$VERSION-x86_64.flatpak
+          flatpak info --user org.securetunnel.SecureTunnel
+          set +e; timeout 8 xvfb-run -a flatpak run --user org.securetunnel.SecureTunnel; rc=$?; set -e
+          echo "exit code $rc"; [ $rc -eq 124 ]
+
+      - name: Inspect packages
+        run: |
+          cd dist/linux
+          dpkg-deb --info secure-tunnel_*_amd64.deb | sed -n '1,25p'
+          rpm -qpi secure-tunnel-*.x86_64.rpm | head -12
+          rm -f SHA256SUMS && sha256sum * | grep -v PKGBUILD > SHA256SUMS
+          ls -la; cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/linux/
+          if-no-files-found: error

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Secure Tunnel
+GenericName=VPN client
+Comment=Connect to WireGuard servers with traffic disguising and a kill switch
+Exec=secure-tunnel
+Icon=secure-tunnel
+Terminal=false
+Categories=Network;Security;
+Keywords=VPN;WireGuard;Tunnel;
+StartupWMClass=secure-tunnel

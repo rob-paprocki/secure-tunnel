@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Pre-approves Secure Tunnel's Network Extension so Macs need no clicks.
+  macOS only honours this when the profile is delivered by an MDM server
+  (Jamf, Kandji, Mosyle, Intune, Apple Business Essentials...): a profile
+  double-clicked by hand cannot approve system extensions.
+-->
+<plist version="1.0">
+<dict>
+	<key>PayloadDisplayName</key><string>Secure Tunnel pre-approval</string>
+	<key>PayloadIdentifier</key><string>com.example.securetunnel.preapproval</string>
+	<key>PayloadType</key><string>Configuration</string>
+	<key>PayloadUUID</key><string>6F0E7F4C-6B1E-4C7B-9D1A-4F2F3B8E1A01</string>
+	<key>PayloadVersion</key><integer>1</integer>
+	<key>PayloadScope</key><string>System</string>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key><string>com.apple.system-extension-policy</string>
+			<key>PayloadIdentifier</key><string>com.example.securetunnel.preapproval.sysext</string>
+			<key>PayloadUUID</key><string>6F0E7F4C-6B1E-4C7B-9D1A-4F2F3B8E1A02</string>
+			<key>PayloadVersion</key><integer>1</integer>
+			<key>AllowedSystemExtensions</key>
+			<dict>
+				<key>YOUR_TEAM_ID</key>
+				<array><string>com.example.securetunnel.proxy</string></array>
+			</dict>
+			<key>AllowedSystemExtensionTypes</key>
+			<dict>
+				<key>YOUR_TEAM_ID</key>
+				<array><string>NetworkExtension</string></array>
+			</dict>
+		</dict>
+		<dict>
+			<key>PayloadType</key><string>com.apple.vpn.managed</string>
+			<key>PayloadIdentifier</key><string>com.example.securetunnel.preapproval.proxy</string>
+			<key>PayloadUUID</key><string>6F0E7F4C-6B1E-4C7B-9D1A-4F2F3B8E1A03</string>
+			<key>PayloadVersion</key><integer>1</integer>
+			<key>UserDefinedName</key><string>Secure Tunnel per-app routing</string>
+			<key>VPNType</key><string>TransparentProxy</string>
+			<key>VPNSubType</key><string>com.example.securetunnel</string>
+			<key>TransparentProxy</key>
+			<dict>
+				<key>ProviderBundleIdentifier</key><string>com.example.securetunnel.proxy</string>
+				<key>ProviderType</key><string>app-proxy</string>
+				<key>RemoteAddress</key><string>Secure Tunnel</string>
+				<key>ProviderDesignatedRequirement</key><string>anchor apple generic and identifier "com.example.securetunnel.proxy" and certificate leaf[subject.OU] = "YOUR_TEAM_ID"</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

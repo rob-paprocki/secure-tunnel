@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.securetunnel.SecureTunnel</id>
+  <name>Secure Tunnel</name>
+  <summary>WireGuard and AmneziaWG client that can disguise its traffic</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Secure Tunnel connects to WireGuard and AmneziaWG servers. It can make the start of a
+      connection look like QUIC, DNS, SIP or STUN traffic, which helps on networks that use
+      deep packet inspection to block VPNs.
+    </p>
+    <p>
+      It also has a kill switch, per-app routing and a SOCKS5 proxy option. You need a
+      profile from your own server or provider.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.securetunnel.SecureTunnel.desktop</launchable>
+  <url type="homepage">https://github.com/rob-paprocki/secure-tunnel</url>
+  <url type="bugtracker">https://github.com/rob-paprocki/secure-tunnel/issues</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.0.0" date="2026-11-21" />
+  </releases>
+</component>

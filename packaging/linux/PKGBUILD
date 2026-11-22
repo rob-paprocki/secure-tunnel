@@ -1,0 +1,27 @@
+# Arch Linux (and Manjaro, EndeavourOS): builds the package from the prebuilt
+# tarball made by build-packages.py. Put secure-tunnel-<ver>-linux-<arch>.tar.gz
+# next to this file and run `makepkg -si`.
+pkgname=secure-tunnel
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Desktop VPN client for WireGuard profiles"
+arch=('x86_64' 'aarch64')
+license=('custom')
+depends=('glibc' 'libglvnd' 'libxkbcommon' 'libx11' 'libxcursor' 'libxrandr' 'libxi' 'wayland'
+         'iproute2' 'nftables' 'polkit' 'procps-ng' 'xdg-utils')
+optdepends=('libsecret: keep the profile key in the desktop keyring'
+            'xdg-desktop-portal: native file dialogs')
+source_x86_64=("$pkgname-$pkgver-linux-x86_64.tar.gz")
+source_aarch64=("$pkgname-$pkgver-linux-aarch64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver-linux-$CARCH"
+    install -Dm755 secure-tunnel "$pkgdir/usr/bin/secure-tunnel"
+    install -Dm644 secure-tunnel.desktop "$pkgdir/usr/share/applications/secure-tunnel.desktop"
+    for s in 48 128 256; do
+        install -Dm644 "icons/${s}x${s}/secure-tunnel.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/secure-tunnel.png"
+    done
+    install -Dm644 THIRD_PARTY.md "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY.md"
+}

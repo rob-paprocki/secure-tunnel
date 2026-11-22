@@ -1,0 +1,28 @@
+target/
+shots/
+build/
+mobile/core/target/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/app/src/main/jniLibs/
+mobile/android/build/
+
+# Private word list (seeded from ~/.claude/wordlist.local; never commit)
+wordlist.local
+.claude/
+
+# Large raw transcripts stay on disk only
+private/**/*.jsonl
+__pycache__/
+*.pyc
+
+# Windows drivers: downloaded and hash-checked by scripts/fetch_vendor.py (build.rs runs it)
+vendor/wintun/*/
+vendor/windivert/*/
+
+# Release downloads built by packaging/*/build-*
+dist/
+
+# Binary copied in by the Flatpak build
+packaging/linux/flatpak/secure-tunnel
