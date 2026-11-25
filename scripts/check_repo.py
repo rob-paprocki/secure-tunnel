@@ -10,7 +10,7 @@ Exit code 0 means clean, 1 means findings, 2 means the check could not run.
 
 Allowed by design:
 - Emails: example.com (and subdomains), *.invalid, git@github.com,
-  the GitHub Actions bot address.
+  noreply@github.com, the GitHub Actions bot address.
 - IPv4: loopback, 0.0.0.0, the example network 192.168.100.0/24, the
   documentation ranges, a few well-known public resolvers, multicast, and
   whole-range blocks written as CIDR with a prefix of /16 or wider
@@ -37,7 +37,7 @@ IPV4_RE = re.compile(r"(?<![\d.])((?:\d{1,3}\.){3}\d{1,3})(/\d{1,2})?(?![\d.]*\d
 MAC_RE = re.compile(r"(?<![0-9A-Fa-f:-])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])")
 
 ALLOWED_EMAIL_RE = re.compile(
-    r"(@(?:[A-Za-z0-9-]+\.)*example\.(?:com|org|net)$|\.invalid$|^git@github\.com$"
+    r"(@(?:[A-Za-z0-9-]+\.)*example\.(?:com|org|net)$|\.invalid$|^git@github\.com$|^noreply@github\.com$"
     r"|^41898282\+github-actions\[bot\]@users\.noreply\.github\.com$)",
     re.I,
 )
@@ -101,18 +101,6 @@ def load_binaries(root: Path) -> dict[str, str]:
     return out
 
 
-def load_substitutions(root: Path) -> list[tuple[str, str]]:
-    """Literal old<TAB>new pairs from private/release/public-substitutions.tsv."""
-    path = root / "private" / "release" / "public-substitutions.tsv"
-    out: list[tuple[str, str]] = []
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line and not line.startswith("#") and "\t" in line:
-                old, new = line.split("\t", 1)
-                out.append((old, new))
-    return out
-
-
 def list_files(root: Path) -> list[str]:
     try:
         res = subprocess.run(
@@ -139,9 +127,6 @@ def check(root: Path, publish: bool) -> tuple[list[str], list[str]]:
         words = words or []
     allow = load_allow(root)
     binaries = load_binaries(root)
-    # In development, check files as they will be published: apply the same
-    # literal substitutions the public-copy step applies (in order).
-    subs = [] if publish else load_substitutions(root)
 
     for rel in list_files(root):
         if rel == "wordlist.local":
@@ -154,8 +139,6 @@ def check(root: Path, publish: bool) -> tuple[list[str], list[str]]:
         data = (root / rel).read_bytes()
         try:
             text = data.decode("utf-8")
-            for old, new in subs:
-                text = text.replace(old, new)
         except UnicodeDecodeError:
             if publish and binaries.get(rel) != hashlib.sha256(data).hexdigest():
                 findings.append(f"{rel}: not UTF-8 text and not in scripts/check-binaries.txt")

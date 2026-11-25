@@ -1,0 +1,262 @@
+name: Cut release
+
+# PRIVATE ONLY: listed in private/public-exclude.txt, so it never reaches the public repository.
+# Started by hand on main once the owner has said yes (private/RELEASING.md), or by another
+# workflow through workflow_call (an automatic patch release with auto_line). Every
+# project-specific value comes from private/release.conf; nothing here needs editing.
+#   config   reads private/release.conf. With no PUBLIC_REPO, or when this isn't PRIVATE_REPO,
+#            everything below is skipped: a project made from the template stays inert.
+#   test     the release kit's tests, TEST_COMMAND and the pattern checks. No secrets.
+#   release  1. plan the version from CHANGELOG.md and check the changelog, 2. make the release
+#            commit and its tag, build the public copy and check it (the only step that reads the
+#            word list), 3. prepare the public commit and dry-run its push, 4. push the private
+#            side, 5. push the public side. A rehearsal stops after 3 and pushes nothing.
+# finish_tag=vX.Y.Z skips the plan and the private side: it rebuilds the copy from that tag and
+# finishes the public side of a release whose private side is already pushed.
+# Secrets: PRIVATE_WORDLIST (the word list's lines) and PUBLIC_DEPLOY_KEY (the private half of a
+# deploy key with write access to the public repository). A caller passes them with
+# "secrets: inherit".
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which number to raise (auto reads the CHANGELOG headings)"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      rehearse:
+        description: "Rehearse only: plan, build, check and dry-run, push nothing"
+        type: boolean
+        default: true
+      finish_tag:
+        description: "Finish the public side for this existing tag (vX.Y.Z); empty for a new release"
+        type: string
+        default: ""
+      first_base:
+        description: "FIRST release only: the public branch's commit (SHA) that already exists, to build on"
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      bump:
+        type: string
+        default: auto
+      rehearse:
+        type: boolean
+        default: true
+      finish_tag:
+        type: string
+        default: ""
+      first_base:
+        type: string
+        default: ""
+      auto_line:
+        description: "Changelog line for an automatic patch release (must start with AUTO_PREFIX)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  config:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.conf.outputs.enabled }}
+      runner: ${{ steps.conf.outputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read private/release.conf
+        id: conf
+        run: |
+          set -euo pipefail
+          python3 -I scripts/release/release_conf.py check
+          public=$(python3 -I scripts/release/release_conf.py get PUBLIC_REPO)
+          private=$(python3 -I scripts/release/release_conf.py get PRIVATE_REPO)
+          echo "runner=$(python3 -I scripts/release/release_conf.py get TEST_RUNNER)" >> "$GITHUB_OUTPUT"
+          if [ -z "$public" ]; then
+            echo "private/release.conf names no PUBLIC_REPO: nothing to release." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REPOSITORY" != "$private" ]; then
+            echo "This is $GITHUB_REPOSITORY, not $private: nothing to release here." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    # No secrets here: install scripts and tests run in this job, so they can't touch the
+    # workspace of the job that holds the deploy key and the word list.
+    needs: config
+    if: needs.config.outputs.enabled == 'true'
+    runs-on: ${{ needs.config.outputs.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Release kit tests
+        run: python3 -I -B -m unittest discover -s scripts/release/tests -p 'test_*.py'
+      - name: The project's tests (TEST_COMMAND)
+        run: |
+          set -euo pipefail
+          ran=0
+          while IFS= read -r cmd; do
+            [ -n "$cmd" ] || continue
+            echo "::group::$cmd"
+            bash -euo pipefail -c "$cmd"
+            echo "::endgroup::"
+            ran=1
+          done < <(python3 -I scripts/release/release_conf.py get TEST_COMMAND)
+          if [ "$ran" = 0 ] && [ -d tests ]; then
+            python3 -m unittest discover -s tests -p 'test_*.py'
+          fi
+      - name: Personal-value check (emails, IPs, MACs, unapproved binaries)
+        run: |
+          set -euo pipefail
+          script=$(python3 -I scripts/release/release_conf.py get CHECK_SCRIPT)
+          if [ -n "$script" ]; then python3 -I "$script"; fi
+          if [ "$(python3 -I scripts/release/release_conf.py get BUILTIN_PATTERNS)" = 1 ]; then
+            python3 -I scripts/release/check_patterns.py
+          fi
+
+  release:
+    needs: [config, test]
+    if: needs.config.outputs.enabled == 'true' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write     # to push the release commit and its tag to the private main; nothing else
+    env:
+      BUMP: ${{ inputs.bump }}
+      REHEARSE: ${{ inputs.rehearse }}
+      FINISH_TAG: ${{ inputs.finish_tag }}
+      FIRST_BASE: ${{ inputs.first_base }}
+      AUTO_LINE: ${{ inputs.auto_line }}
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: 1. Plan
+        run: |
+          set -euo pipefail
+          conf() { python3 -I scripts/release/release_conf.py get "$1"; }
+          NAME=$(conf NAME)
+          PUBLIC_REPO=$(conf PUBLIC_REPO)
+          PUBLIC_BRANCH=$(conf PUBLIC_BRANCH)
+          git config user.name "$(conf PRIVATE_BOT_NAME)"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          release_msg() { local t; t=$(conf RELEASE_COMMIT_MESSAGE); t=${t//\{version\}/$1}; printf '%s' "${t//\{name\}/$NAME}"; }
+          if [ -n "$FINISH_TAG" ]; then
+            [[ "$FINISH_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::finish_tag must look like vX.Y.Z"; exit 1; }
+            git rev-parse -q --verify "refs/tags/$FINISH_TAG" >/dev/null || { echo "::error::no tag $FINISH_TAG here"; exit 1; }
+            git merge-base --is-ancestor "refs/tags/$FINISH_TAG" HEAD || { echo "::error::$FINISH_TAG is not on main"; exit 1; }
+            [ "$(git cat-file -t "refs/tags/$FINISH_TAG")" = tag ] || { echo "::error::$FINISH_TAG isn't an annotated tag"; exit 1; }
+            VERSION="${FINISH_TAG#v}"
+            [ "$(git for-each-ref --format='%(contents:subject)' "refs/tags/$FINISH_TAG")" = "$NAME $VERSION" ] \
+              || { echo "::error::$FINISH_TAG's message isn't \"$NAME $VERSION\""; exit 1; }
+            [ "$(git log -1 --format=%s "refs/tags/$FINISH_TAG")" = "$(release_msg "$VERSION" | head -n 1)" ] \
+              || { echo "::error::$FINISH_TAG isn't on the release commit this workflow makes"; exit 1; }
+            python3 -I scripts/release/changelog.py notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+            echo "Finishing the public side of $FINISH_TAG; its release commit is already on main." >> "$GITHUB_STEP_SUMMARY"
+          else
+            [[ "$BUMP" =~ ^(auto|patch|minor|major)$ ]] || { echo "::error::bump must be auto, patch, minor or major"; exit 1; }
+            if [ -n "$AUTO_LINE" ]; then
+              [ "$BUMP" = patch ] || { echo "::error::an automatic release is a patch release"; exit 1; }
+              python3 -I scripts/release/changelog.py autoline "$AUTO_LINE"
+            fi
+            python3 -I scripts/release/changelog.py plan --bump "$BUMP" > "$RUNNER_TEMP/plan.json"
+            # An automatic release carries its own changelog line, so it skips the check.
+            [ -n "$AUTO_LINE" ] || python3 -I scripts/release/changelog_check.py
+            VERSION=$(python3 -I -c 'import json, sys; print(json.load(sys.stdin)["version"])' < "$RUNNER_TEMP/plan.json")
+            ! git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null || { echo "::error::v$VERSION already exists"; exit 1; }
+            python3 -I -c 'import json, sys; print(json.load(sys.stdin)["notes"])' < "$RUNNER_TEMP/plan.json" > "$RUNNER_TEMP/notes.md"
+          fi
+          { echo "## $NAME $VERSION"; echo; cat "$RUNNER_TEMP/notes.md"; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "VERSION=$VERSION"; echo "NAME=$NAME"; echo "PUBLIC_REPO=$PUBLIC_REPO"
+            echo "PUBLIC_BRANCH=$PUBLIC_BRANCH"; echo "RELEASE_MSG<<EOF_RELEASE_MSG"; release_msg "$VERSION"; echo
+            echo "EOF_RELEASE_MSG"; } >> "$GITHUB_ENV"
+
+      - name: 2. Release commit and tag (local), then build and check the public copy
+        env:
+          # Only this step reads the word list (build_public.py).
+          PRIVATE_WORDLIST: ${{ secrets.PRIVATE_WORDLIST }}
+        run: |
+          set -euo pipefail
+          [ -n "$PRIVATE_WORDLIST" ] || { echo "::error::the PRIVATE_WORDLIST secret is not set"; exit 1; }
+          if [ -z "$FINISH_TAG" ]; then
+            python3 -I scripts/release/changelog.py finalize "$VERSION" "$(date -u +%F)"
+            git commit -q -a -m "$RELEASE_MSG"
+            git tag -a "v$VERSION" -m "$NAME $VERSION"
+          fi
+          python3 -I scripts/release/build_public.py "v$VERSION" "$RUNNER_TEMP/public-copy" \
+              --message "$NAME $VERSION" --message "$RELEASE_MSG" --message "$(cat "$RUNNER_TEMP/notes.md")"
+
+      - name: 3. Public repository hasn't moved; prepare its commit; check the key can push
+        env:
+          PUBLIC_DEPLOY_KEY: ${{ secrets.PUBLIC_DEPLOY_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [ -n "$PUBLIC_DEPLOY_KEY" ] || { echo "::error::the PUBLIC_DEPLOY_KEY secret is not set"; exit 1; }
+          printf '%s\n' "$PUBLIC_DEPLOY_KEY" > "$RUNNER_TEMP/deploy_key"
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$RUNNER_TEMP/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts -o GlobalKnownHostsFile=/dev/null"
+          git clone -q "git@github.com:$PUBLIC_REPO.git" "$RUNNER_TEMP/public"
+          # The unmoved check only looks at the local clone, so fetch right before it.
+          git -C "$RUNNER_TEMP/public" fetch -q --tags origin
+          if git -C "$RUNNER_TEMP/public" rev-parse -q --verify "refs/remotes/origin/$PUBLIC_BRANCH" >/dev/null; then
+            git -C "$RUNNER_TEMP/public" checkout -q -B "$PUBLIC_BRANCH" "origin/$PUBLIC_BRANCH"
+          fi
+          python3 -I scripts/release/publish_public.py prepare "$RUNNER_TEMP/public" "$RUNNER_TEMP/public-copy" "$VERSION" \
+              ${FIRST_BASE:+--first-base "$FIRST_BASE"}
+          # Sends nothing. A deploy key without write access fails here, before either side is
+          # pushed, and in a rehearsal too. (Branch protection is checked only by a real push.)
+          git -C "$RUNNER_TEMP/public" push --dry-run --atomic origin "HEAD:refs/heads/$PUBLIC_BRANCH" "refs/tags/v$VERSION"
+          { echo "## What the public commit changes (A added, M changed, D removed)"; echo; echo '```'
+            if git -C "$RUNNER_TEMP/public" rev-parse -q --verify HEAD~1 >/dev/null; then
+              git -C "$RUNNER_TEMP/public" diff --name-status --no-renames HEAD~1 | head -n 400
+              git -C "$RUNNER_TEMP/public" diff --shortstat --no-renames HEAD~1
+            else
+              git -C "$RUNNER_TEMP/public" show --stat --format= HEAD | head -n 400
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 4. Private side
+        if: ${{ !inputs.rehearse && inputs.finish_tag == '' }}
+        run: |
+          set -euo pipefail
+          # One atomic push of the release commit and its tag. If main moved since the tests, the
+          # push is refused (not a fast-forward) and nothing is pushed.
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/v$VERSION"
+
+      - name: 5. Public side
+        if: ${{ !inputs.rehearse }}
+        run: |
+          set -euo pipefail
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts -o GlobalKnownHostsFile=/dev/null"
+          python3 -I scripts/release/publish_public.py push "$RUNNER_TEMP/public" "$VERSION"
+          echo "Public release page: https://github.com/$PUBLIC_REPO/releases/tag/v$VERSION (its files appear when the public Release workflow finishes)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy_key"

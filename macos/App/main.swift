@@ -11,7 +11,7 @@ import Foundation
 import NetworkExtension
 import SystemExtensions
 
-let extensionID = (Bundle.main.bundleIdentifier ?? "com.example.securetunnel") + ".proxy"
+let extensionID = (Bundle.main.bundleIdentifier ?? "com.securetunnelapp.client") + ".proxy"
 let args = CommandLine.arguments
 
 func finish(_ code: Int32, _ message: String) -> Never {

@@ -42,7 +42,7 @@ class CheckRepoTests(unittest.TestCase):
 
     def test_clean_examples_pass(self):
         self.write("a.md", "Use 192.168.100.20, 192.0.2.1, 1.1.1.1, 127.0.0.1 and 172.16.0.0/12.\n"
-                           "Mail ops@example.com or x@y.invalid. MAC 00:00:5E:00:53:01.\n")
+                           "Mail ops@example.com, noreply@github.com or x@y.invalid. MAC 00:00:5E:00:53:01.\n")
         findings, _ = self.run_check()
         self.assertEqual(findings, [])
 
@@ -76,14 +76,6 @@ class CheckRepoTests(unittest.TestCase):
         self.write("private/notes.md", f"{BAD_EMAIL}\n")
         self.assertEqual(self.run_check()[0], [])
         self.assertEqual(self.run_check(publish=True)[0], ["private/notes.md:1: email address"])
-
-    def test_dev_check_applies_public_substitutions(self):
-        self.write("private/release/public-substitutions.tsv",
-                   "# comment\nTEAM = zzsecretterm;\tTEAM = \"\";\n")
-        self.write("proj.cfg", "TEAM = zzsecretterm;\n")
-        self.assertEqual(self.run_check()[0], [])
-        self.write("other.cfg", "zzsecretterm elsewhere\n")
-        self.assertEqual(self.run_check()[0], ["other.cfg:1: word list match"])
 
     def test_empty_wordlist_fails_publish_only(self):
         (self.root / "wordlist.local").write_text("\n", encoding="utf-8")

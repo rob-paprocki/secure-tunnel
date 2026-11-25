@@ -15,7 +15,7 @@
 	<key>NSSystemExtensionUsageDescription</key><string>Secure Tunnel uses this to send the apps you choose around the VPN (or only those apps through it).</string>
 	<key>NetworkExtension</key>
 	<dict>
-		<key>NEMachServiceName</key><string>$(TeamIdentifierPrefix)com.example.securetunnel.proxy</string>
+		<key>NEMachServiceName</key><string>$(TeamIdentifierPrefix)com.securetunnelapp.client.proxy</string>
 		<key>NEProviderClasses</key>
 		<dict>
 			<key>com.apple.networkextension.app-proxy</key><string>$(PRODUCT_MODULE_NAME).TransparentProxy</string>

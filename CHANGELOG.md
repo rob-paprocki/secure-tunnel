@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-25
+
+**Upgrading:** nothing to do.
+
+### Changed
+
+- The Mac app's project files now use the real Apple Team ID and bundle IDs. Every signed copy of the app already shows them.
+- The README's Releases and Issues links use full GitHub addresses, so they also work when the README is read outside GitHub.
+
+### Fixed
+
+- The repository's own `CONTRIBUTING.md` and `SECURITY.md` were copies of the account-wide ones and are gone, so GitHub now shows the account-wide versions and they stay current.
+
 ## [1.0.0] - 2026-11-21
 
 **Upgrading:** nothing to do.

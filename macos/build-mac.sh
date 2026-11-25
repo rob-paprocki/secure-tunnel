@@ -38,7 +38,9 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 ||
 echo "Building Secure Tunnel $VERSION (build $BUILD_NUMBER)"
 
 # 1. The Rust window program, for both CPU types, joined into one file.
+#    Path remapping keeps the home and repo folders out of the binary.
 cd $ROOT
+export RUSTFLAGS=${RUSTFLAGS:-"--remap-path-prefix=$HOME=~ --remap-path-prefix=$ROOT=/build/secure-tunnel"}
 . ~/.cargo/env
 rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
 cargo build --release --locked --target aarch64-apple-darwin

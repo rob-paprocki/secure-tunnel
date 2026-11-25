@@ -60,6 +60,14 @@ def find_wix() -> str:
     sys.exit("build-windows: WiX not found. Install it with: dotnet tool install --global wix --version 5.0.2")
 
 
+def remap_flags() -> dict[str, str]:
+    """Keeps the home and repo folders out of the binaries (Rust embeds source paths)."""
+    if os.environ.get("CARGO_ENCODED_RUSTFLAGS") or os.environ.get("RUSTFLAGS"):
+        return {}
+    flags = [f"--remap-path-prefix={Path.home()}=~", f"--remap-path-prefix={ROOT}=/build/secure-tunnel"]
+    return {"CARGO_ENCODED_RUSTFLAGS": "\x1f".join(flags)}
+
+
 def run(*cmd: str, env: dict[str, str] | None = None) -> None:
     print("+", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True, cwd=ROOT, env={**os.environ, **(env or {})})
@@ -76,7 +84,7 @@ def main(argv: list[str]) -> int:
     for arch in arches:
         triple = ARCHES[arch]
         if not skip_build:
-            env = llvm_mingw_env() if triple.endswith("gnullvm") else None
+            env = {**remap_flags(), **(llvm_mingw_env() if triple.endswith("gnullvm") else {})}
             run("cargo", "build", "--release", "--locked", "--target", triple, env=env)
         exe = target_dir / triple / "release" / "secure-tunnel.exe"
         portable = OUT / f"secure-tunnel-{ver}-windows-{arch}.exe"

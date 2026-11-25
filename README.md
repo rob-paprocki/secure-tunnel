@@ -46,7 +46,7 @@ Apple's App Store rules (guideline 5.4) only accept VPN apps from developers enr
 
 ## Install
 
-Download the build for your system from the [Releases](../../releases) page.
+Download the build for your system from the [Releases](https://github.com/rob-paprocki/secure-tunnel/releases) page.
 
 | System | File | Notes |
 |---|---|---|
@@ -134,7 +134,7 @@ A Windows build downloads the Wintun and WinDivert drivers from their official r
 
 ## Help and contributing
 
-Report bugs and ask questions in [Issues](../../issues). This repository is published from a separate development repository, so pull requests can't be merged directly, but fixes sent in issues or pull requests get copied over by hand and ship in the next release.
+Report bugs and ask questions in [Issues](https://github.com/rob-paprocki/secure-tunnel/issues). This repository is published from a separate development repository, so pull requests can't be merged directly, but fixes sent in issues or pull requests get copied over by hand and ship in the next release.
 
 ## Changelog
 

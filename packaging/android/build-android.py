@@ -104,6 +104,10 @@ def main(argv: list[str]) -> int:
     ver = version()
     major, minor, patch = (int(x) for x in ver.split("."))
     env = toolchain_env()
+    if not (env.get("CARGO_ENCODED_RUSTFLAGS") or env.get("RUSTFLAGS")):
+        # Keep the home and repo folders out of the native library (Rust embeds source paths).
+        env["CARGO_ENCODED_RUSTFLAGS"] = "\x1f".join(
+            [f"--remap-path-prefix={Path.home()}=~", f"--remap-path-prefix={ROOT}=/build/secure-tunnel"])
     env["ST_VERSION_NAME"] = ver
     env["ST_VERSION_CODE"] = str(major * 10000 + minor * 100 + patch)
     if "--debug-key" not in argv:
